@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Dev Planner</title>
 
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
 
@@ -135,7 +135,6 @@ td.today-col:hover{background:var(--accent-bg)!important}
 </div>
 <div id="modal-root"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ===================== CONFIG =====================
 const SUPABASE_URL     = 'https://dmpetyumjaqauemnvwgl.supabase.co';
@@ -409,14 +408,25 @@ document.getElementById('date-picker').onchange = e => {
 };
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
-// Initialise — anchor must be set before loadRange is called
-anchor = getMonday(new Date());
-try {
-  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  loadRange();
-} catch(e) {
-  showError('Failed to connect to Supabase: '+e.message);
-}
+// Initialise
+(function init() {
+  var now = new Date();
+  var day = now.getDay();
+  var diff = (day === 0) ? -6 : (1 - day);
+  now.setDate(now.getDate() + diff);
+  now.setHours(0, 0, 0, 0);
+  anchor = now;
+  if (!anchor || isNaN(anchor.getTime())) {
+    showError('Date initialisation failed.');
+    return;
+  }
+  try {
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    loadRange();
+  } catch(e) {
+    showError('Failed to connect to Supabase: ' + e.message);
+  }
+})();
 </script>
 </body>
 </html>
