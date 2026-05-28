@@ -6,6 +6,7 @@
 <title>Dev Planner</title>
 
 
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
@@ -106,10 +107,44 @@ td.today-col:hover{background:var(--accent-bg)!important}
 .error-banner{background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;border-radius:var(--r);padding:10px 14px;font-size:13px;margin-bottom:1rem;display:none}
 .error-banner.visible{display:block}
 @media(max-width:600px){.page{padding:1rem 0.75rem 3rem}.month-modal{width:calc(100vw - 2rem)}}
+
+/* Auth */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:2rem;width:380px;max-width:100%}
+.auth-logo{width:44px;height:44px;border-radius:var(--r);background:var(--text);display:flex;align-items:center;justify-content:center;margin-bottom:1.25rem}
+.auth-logo i{color:var(--bg);font-size:22px}
+.auth-title{font-size:18px;font-weight:500;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--text2);margin-bottom:1.5rem}
+.auth-msg{font-size:12px;padding:8px 11px;border-radius:var(--r);margin-top:12px;display:none}
+.auth-msg.visible{display:block}
+.auth-msg.success{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46}
+.auth-msg.error{background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c}
+.user-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--r);background:var(--surface2);font-size:12px;color:var(--text2);font-family:var(--mono)}
+.user-pill i{font-size:13px}
+.history-line{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
-<div class="page">
+
+<!-- Auth screen (shown until signed in) -->
+<div class="auth-screen" id="auth-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo"><i class="ti ti-layout-columns"></i></div>
+    <div class="auth-title">Dev Planner</div>
+    <div class="auth-sub">Sign in with your work email to continue.</div>
+    <div class="field">
+      <label class="field-label">Email</label>
+      <input type="email" id="auth-email" placeholder="you@company.com" autocomplete="email" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn accent" id="auth-send" style="flex:1;justify-content:center">Send magic link</button>
+    </div>
+    <div class="auth-msg" id="auth-msg"></div>
+  </div>
+</div>
+
+<!-- Main app (shown after sign in) -->
+<div class="page" id="app" style="display:none">
   <div class="error-banner" id="error-banner"></div>
   <div class="header">
     <div class="header-left">
@@ -126,6 +161,8 @@ td.today-col:hover{background:var(--accent-bg)!important}
         <button class="btn icon-only ghost" id="next-btn"><i class="ti ti-chevron-right"></i></button>
         <button class="btn ghost" id="today-btn">Today</button>
       </div>
+      <span class="user-pill" id="user-pill"><i class="ti ti-user"></i><span id="user-email"></span></span>
+      <button class="btn ghost" id="signout-btn" title="Sign out"><i class="ti ti-logout"></i></button>
       <span class="status" id="status"></span>
     </div>
   </div>
@@ -158,6 +195,7 @@ let db = null;
 let cache = {};
 let anchor = null;
 let pendingColor = {};
+let currentUser = null;
 
 function getMonday(d) {
   const dt = new Date(d);
@@ -212,10 +250,11 @@ async function loadRange() {
 
 async function upsertSlot(dev, date, text, color, url) {
   setStatus('Saving…');
-  cache[ckey(dev,date)] = {dev,date,text,color,url};
+  const changed_by = currentUser?.id || null;
+  cache[ckey(dev,date)] = {dev,date,text,color,url,changed_by,updated_at:new Date().toISOString()};
   renderTable(false); renderLegend();
   try {
-    const {error} = await db.from('slots').upsert({dev,date,text,color,url},{onConflict:'dev,date'});
+    const {error} = await db.from('slots').upsert({dev,date,text,color,url,changed_by},{onConflict:'dev,date'});
     if(error) throw error;
     setStatus('Saved ✓'); setTimeout(()=>setStatus(''),1500);
   } catch(e) { setStatus('Save failed'); showError('Could not save: '+e.message); }
@@ -295,12 +334,29 @@ function renderLegend() {
   el.innerHTML = html;
 }
 
-function openSlot(dev, dateStr) {
+async function openSlot(dev, dateStr) {
   const key = ckey(dev,dateStr);
   const entry = cache[key]||{text:'',color:'gray',url:''};
   pendingColor[key] = entry.color||'gray';
   const d = new Date(dateStr+'T00:00:00');
   const swatches = COLORS.map(c=>`<div class="swatch" style="background:${c.bg};border-color:${pendingColor[key]===c.name?c.text:'transparent'}" data-name="${c.name}" onclick="pickColor(this,'${key}')" title="${c.name}"></div>`).join('');
+
+  // Look up last editor (latest history row) if this slot exists
+  let historyLine = '';
+  if(entry.text) {
+    try {
+      const {data} = await db.from('slot_history')
+        .select('action, changed_at, changed_by')
+        .eq('slot_dev',dev).eq('slot_date',dateStr)
+        .order('changed_at',{ascending:false}).limit(1);
+      if(data && data[0]) {
+        const editor = await getUserEmail(data[0].changed_by);
+        const when = new Date(data[0].changed_at).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+        historyLine = `<div class="history-line">Last ${data[0].action} by ${esc(editor)} · ${when}</div>`;
+      }
+    } catch(e){}
+  }
+
   document.getElementById('modal-root').innerHTML = `
     <div class="overlay" onclick="if(event.target===this)closeModal()">
       <div class="modal" role="dialog">
@@ -318,9 +374,26 @@ function openSlot(dev, dateStr) {
           <button class="btn danger" onclick="delSlot('${esc(dev)}','${dateStr}')">Clear</button>
           <button class="btn ghost" onclick="closeModal()">Cancel</button>
         </div>
+        ${historyLine}
       </div>
     </div>`;
   setTimeout(()=>document.getElementById('f-text')?.focus(),50);
+}
+
+// Lightweight cache of user_id → email lookups
+const userEmailCache = {};
+async function getUserEmail(userId) {
+  if(!userId) return 'unknown';
+  if(userEmailCache[userId]) return userEmailCache[userId];
+  // If it's the current user, we already know
+  if(currentUser && currentUser.id === userId) {
+    userEmailCache[userId] = currentUser.email;
+    return currentUser.email;
+  }
+  // Otherwise show a short uuid — full email lookup requires a server-side function
+  const short = userId.slice(0,8);
+  userEmailCache[userId] = short;
+  return short;
 }
 
 function pickColor(el, key) {
@@ -409,23 +482,95 @@ document.getElementById('date-picker').onchange = e => {
 };
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
+// =============== AUTH ===============
+function showAuthMsg(text, kind) {
+  const el = document.getElementById('auth-msg');
+  el.textContent = text;
+  el.className = 'auth-msg visible ' + (kind||'success');
+}
+
+async function sendMagicLink() {
+  const email = document.getElementById('auth-email').value.trim();
+  if(!email) { showAuthMsg('Enter your email first.','error'); return; }
+  const btn = document.getElementById('auth-send');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const {error} = await db.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + window.location.pathname }
+    });
+    if(error) throw error;
+    showAuthMsg('Check your inbox — click the link to sign in.','success');
+  } catch(e) {
+    showAuthMsg(e.message || 'Could not send link.','error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send magic link';
+  }
+}
+
+async function signOut() {
+  await db.auth.signOut();
+  currentUser = null;
+  cache = {};
+  showAuthScreen();
+}
+
+function showAuthScreen() {
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+function showApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-email').textContent = currentUser.email;
+}
+
 // Initialise
-(function init() {
+(async function init() {
+  // Date anchor
   var now = new Date();
   var day = now.getDay();
   var diff = (day === 0) ? -6 : (1 - day);
   now.setDate(now.getDate() + diff);
   now.setHours(0, 0, 0, 0);
   anchor = now;
-  if (!anchor || isNaN(anchor.getTime())) {
-    showError('Date initialisation failed.');
-    return;
-  }
+
+  // Supabase client
   try {
     db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    loadRange();
   } catch(e) {
+    document.getElementById('app').style.display = 'block';
     showError('Failed to connect to Supabase: ' + e.message);
+    return;
+  }
+
+  // Wire auth UI
+  document.getElementById('auth-send').onclick = sendMagicLink;
+  document.getElementById('auth-email').addEventListener('keydown', e => {
+    if(e.key === 'Enter') sendMagicLink();
+  });
+  document.getElementById('signout-btn').onclick = signOut;
+
+  // React to auth changes (magic-link callback fires this)
+  db.auth.onAuthStateChange((event, session) => {
+    if(session && session.user) {
+      currentUser = session.user;
+      showApp();
+      loadRange();
+    } else {
+      currentUser = null;
+      showAuthScreen();
+    }
+  });
+
+  // Check existing session
+  const {data:{session}} = await db.auth.getSession();
+  if(session && session.user) {
+    currentUser = session.user;
+    showApp();
+    loadRange();
+  } else {
+    showAuthScreen();
   }
 })();
 </script>
