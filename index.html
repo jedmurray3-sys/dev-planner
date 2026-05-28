@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Dev Planner</title>
 
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
@@ -193,7 +194,7 @@ function showError(msg) { const el=document.getElementById('error-banner'); el.t
 async function loadRange() {
   const days = get14Days();
   const from = fmt(days[0]);
-  const to   = fmt(days[13]);
+  const to   = fmt(days[days.length - 1]);
   renderTable(true);
   setStatus('Loading…');
   try {
