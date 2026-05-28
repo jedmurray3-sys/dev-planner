@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dev Planner</title>
+
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f6f3;--surface:#fff;--surface2:#f0efe9;
+  --border:rgba(0,0,0,0.08);--border-med:rgba(0,0,0,0.14);
+  --text:#1a1917;--text2:#6b6a66;--text3:#a8a7a3;
+  --accent:#2563eb;--accent-bg:#eff4ff;--accent-text:#1d4ed8;
+  --r:8px;--rl:12px;
+  --font:'DM Sans',system-ui,sans-serif;--mono:'DM Mono',monospace;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+.page{max-width:1100px;margin:0 auto;padding:2rem 1.5rem 4rem}
+.header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:2rem}
+.header-left{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;border-radius:var(--r);background:var(--text);display:flex;align-items:center;justify-content:center}
+.logo i{color:var(--bg);font-size:18px}
+.app-name{font-size:17px;font-weight:500;letter-spacing:-0.01em}
+.app-meta{font-size:12px;color:var(--text3);font-family:var(--mono)}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.status{font-size:11px;color:var(--text3);font-family:var(--mono);min-width:70px;text-align:right}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--r);font-size:13px;font-family:var(--font);border:1px solid var(--border-med);background:var(--surface);color:var(--text);cursor:pointer;transition:background 0.12s;white-space:nowrap}
+.btn:hover{background:var(--surface2)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--text2)}
+.btn.ghost:hover{background:var(--surface2);color:var(--text)}
+.btn.accent{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn.accent:hover{opacity:0.85}
+.btn.danger{background:#fff0f0;border-color:#fca5a5;color:#b91c1c}
+.btn.danger:hover{background:#fee2e2}
+.btn.icon-only{padding:7px}
+.date-nav{display:flex;align-items:center;gap:6px}
+input[type=date]{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border-med);border-radius:var(--r);padding:7px 10px;cursor:pointer}
+.grid-card{background:var(--surface);border-radius:var(--rl);border:1px solid var(--border);overflow:hidden}
+.grid-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:700px}
+.col-dev{width:100px}
+thead th{padding:10px 8px;font-size:11px;font-weight:500;text-align:center;color:var(--text3);border-bottom:1px solid var(--border);background:var(--surface);font-family:var(--mono);position:sticky;top:0;z-index:2}
+thead th.dev-head{text-align:left;padding-left:14px}
+thead th.week-sep{border-left:1px solid var(--border-med)}
+.date-num{display:block;font-size:14px;font-weight:500;color:var(--text);margin-bottom:1px;font-family:var(--font)}
+.date-day{display:block;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em}
+thead th.today-head .date-num,thead th.today-head .date-day{color:var(--accent)}
+tbody tr{transition:background 0.1s}
+tbody tr:hover td{background:#fafaf8}
+tbody tr:last-child td{border-bottom:none}
+td{border-bottom:1px solid var(--border);padding:5px 4px;vertical-align:middle}
+td.dev-cell{padding:6px 14px}
+td.day-cell{text-align:center;cursor:pointer}
+td.day-cell:hover{background:var(--accent-bg)!important}
+td.week-sep{border-left:1px solid var(--border-med)}
+td.today-col{background:#f5f8ff}
+td.today-col:hover{background:var(--accent-bg)!important}
+.dev-btn{background:none;border:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;color:var(--text);padding:3px 6px;border-radius:5px;white-space:nowrap;text-align:left;width:100%;transition:background 0.12s,color 0.12s}
+.dev-btn:hover{background:var(--accent-bg);color:var(--accent-text)}
+.slot-empty{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:30px;border-radius:5px;border:1px dashed var(--border-med);color:var(--text3);font-size:16px;transition:border-color 0.12s,color 0.12s}
+.slot-empty:hover{border-color:var(--accent);color:var(--accent)}
+.slot-chip{display:inline-flex;align-items:center;justify-content:center;gap:3px;width:100%;min-height:30px;border-radius:5px;font-size:11px;font-weight:500;padding:3px 5px;line-height:1.3;word-break:break-word;text-align:center;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:filter 0.1s}
+.slot-chip:hover{filter:brightness(0.95)}
+.slot-chip .chip-icon{font-size:10px;flex-shrink:0;opacity:0.65}
+.skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 50%,#eee 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:5px;min-height:30px;width:100%}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 16px 0;padding-bottom:10px}
+.legend-label{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.overlay{position:fixed;inset:0;background:rgba(15,15,13,0.4);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px);animation:fadeIn 0.12s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--surface);border-radius:var(--rl);border:1px solid var(--border-med);padding:1.5rem;width:380px;max-width:calc(100vw - 2rem);max-height:calc(100vh - 4rem);overflow-y:auto;animation:slideUp 0.15s ease}
+@keyframes slideUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-title{font-size:16px;font-weight:500;margin-bottom:3px}
+.modal-sub{font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:1.25rem}
+.field{margin-bottom:14px}
+.field-label{font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:6px}
+.field input{width:100%;padding:8px 11px;font-size:13px;font-family:var(--font);border:1px solid var(--border-med);border-radius:var(--r);background:var(--surface);color:var(--text);transition:border-color 0.12s,box-shadow 0.12s}
+.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+.field-hint{font-size:11px;color:var(--text3);margin-top:4px}
+.color-row{display:flex;gap:7px;flex-wrap:wrap}
+.swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform 0.1s,border-color 0.1s}
+.swatch:hover{transform:scale(1.18)}
+.modal-actions{display:flex;gap:8px;margin-top:1.25rem;flex-wrap:wrap}
+.month-modal{width:640px}
+.month-nav{display:flex;align-items:center;gap:8px;margin-bottom:1rem}
+.month-nav-title{flex:1;text-align:center;font-size:14px;font-weight:500}
+.month-grid{display:grid;grid-template-columns:36px repeat(5,1fr);gap:4px}
+.month-gh{font-size:10px;color:var(--text3);text-align:center;padding:4px 0;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.05em}
+.month-wk{font-size:10px;color:var(--text3);display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-family:var(--mono)}
+.month-cell{min-height:44px;border-radius:var(--r);border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;cursor:pointer;transition:border-color 0.1s,background 0.1s;background:var(--surface)}
+.month-cell:hover{border-color:var(--accent);background:var(--accent-bg)}
+.month-cell.out-month{opacity:0.3}
+.month-cell.is-today{border-color:var(--accent);border-width:1.5px}
+.month-cell.is-past{opacity:0.6}
+.mc-date{font-size:10px;color:var(--text3);padding:3px 5px;font-family:var(--mono)}
+.mc-task{font-size:10px;padding:2px 4px 4px;flex:1;line-height:1.3;display:flex;align-items:flex-start;gap:2px}
+.mc-icon{font-size:9px;flex-shrink:0;margin-top:1px;opacity:0.6}
+.error-banner{background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;border-radius:var(--r);padding:10px 14px;font-size:13px;margin-bottom:1rem;display:none}
+.error-banner.visible{display:block}
+@media(max-width:600px){.page{padding:1rem 0.75rem 3rem}.month-modal{width:calc(100vw - 2rem)}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="error-banner" id="error-banner"></div>
+  <div class="header">
+    <div class="header-left">
+      <div class="logo"><i class="ti ti-layout-columns"></i></div>
+      <div>
+        <div class="app-name">Dev Planner</div>
+        <div class="app-meta">resource · scheduling</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="date-nav">
+        <button class="btn icon-only ghost" id="prev-btn"><i class="ti ti-chevron-left"></i></button>
+        <input type="date" id="date-picker" />
+        <button class="btn icon-only ghost" id="next-btn"><i class="ti ti-chevron-right"></i></button>
+        <button class="btn ghost" id="today-btn">Today</button>
+      </div>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+  <div class="grid-card">
+    <div class="grid-wrap"><table id="planner-table"></table></div>
+    <div class="legend" id="legend"></div>
+  </div>
+</div>
+<div id="modal-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ===================== CONFIG =====================
+const SUPABASE_URL     = 'https://dmpetyumjaqauemnvwgl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcGV0eXVtamFxYXVlbW52d2dsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjYwMzUsImV4cCI6MjA5NTU0MjAzNX0.hRnPcYCLS4AL5_QotkdVFsrmahKw6KF9_HYX6ikvlLE';
+// ==================================================
+
+const DEVS = ['Kamil','Dawid','Stefan','Greg','Jakub','Dragon','Rafal','Jarek'];
+const COLORS = [
+  {name:'blue',   bg:'#dbeafe',text:'#1e40af'},
+  {name:'teal',   bg:'#ccfbf1',text:'#0f766e'},
+  {name:'green',  bg:'#dcfce7',text:'#166534'},
+  {name:'amber',  bg:'#fef3c7',text:'#92400e'},
+  {name:'coral',  bg:'#fee2e2',text:'#991b1b'},
+  {name:'pink',   bg:'#fce7f3',text:'#9d174d'},
+  {name:'purple', bg:'#ede9fe',text:'#5b21b6'},
+  {name:'gray',   bg:'#f3f4f6',text:'#374151'},
+];
+
+let db = null;
+let cache = {};
+let anchor = null;
+let pendingColor = {};
+
+function getMonday(d) {
+  const dt = new Date(d);
+  const day = dt.getDay();
+  dt.setDate(dt.getDate() + (day === 0 ? -6 : 1 - day));
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+function addDays(d, n) { const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt; }
+function fmt(d) { return d.toISOString().slice(0,10); }
+function isToday(d) { return fmt(d) === fmt(new Date()); }
+function isPast(d) { const t = new Date(); t.setHours(0,0,0,0); return d < t; }
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function normUrl(u) { u=(u||'').trim(); return u && !u.match(/^https?:\/\//) ? 'https://'+u : u; }
+function ckey(dev,date) { return dev+'::'+date; }
+function getColor(name) { return COLORS.find(c=>c.name===name)||COLORS[7]; }
+
+function get14Days() {
+  const days = [];
+  for(let w=0;w<2;w++) for(let d=0;d<5;d++) days.push(addDays(anchor,w*7+d));
+  return days;
+}
+
+function getWeekNum(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate()+3-(dt.getDay()+6)%7);
+  const w1 = new Date(dt.getFullYear(),0,4);
+  return 1+Math.round(((dt-w1)/86400000-3+(w1.getDay()+6)%7)/7);
+}
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function showError(msg) { const el=document.getElementById('error-banner'); el.textContent=msg; el.classList.add('visible'); }
+
+async function loadRange() {
+  const days = get14Days();
+  const from = fmt(days[0]);
+  const to   = fmt(days[13]);
+  renderTable(true);
+  setStatus('Loading…');
+  try {
+    const { data, error } = await db.from('slots').select('*').gte('date',from).lte('date',to);
+    if(error) throw error;
+    data.forEach(row => { cache[ckey(row.dev,row.date)] = row; });
+    setStatus('');
+  } catch(e) {
+    setStatus('Load failed');
+    showError('Could not load data: '+e.message);
+  }
+  renderTable(false);
+  renderLegend();
+}
+
+async function upsertSlot(dev, date, text, color, url) {
+  setStatus('Saving…');
+  cache[ckey(dev,date)] = {dev,date,text,color,url};
+  renderTable(false); renderLegend();
+  try {
+    const {error} = await db.from('slots').upsert({dev,date,text,color,url},{onConflict:'dev,date'});
+    if(error) throw error;
+    setStatus('Saved ✓'); setTimeout(()=>setStatus(''),1500);
+  } catch(e) { setStatus('Save failed'); showError('Could not save: '+e.message); }
+}
+
+async function deleteSlot(dev, date) {
+  setStatus('Deleting…');
+  delete cache[ckey(dev,date)];
+  renderTable(false); renderLegend();
+  try {
+    const {error} = await db.from('slots').delete().eq('dev',dev).eq('date',date);
+    if(error) throw error;
+    setStatus('Deleted ✓'); setTimeout(()=>setStatus(''),1500);
+  } catch(e) { setStatus('Delete failed'); }
+}
+
+function renderTable(skeleton) {
+  const days = get14Days();
+  document.getElementById('date-picker').value = fmt(anchor);
+  let html = '<thead><tr><th class="dev-head col-dev">Developer</th>';
+  days.forEach((d,i) => {
+    const sep = i===5?' week-sep':'';
+    const th  = isToday(d)?' today-head':'';
+    html += `<th class="${sep}${th}"><span class="date-num">${d.getDate()}</span><span class="date-day">${d.toLocaleDateString('en-GB',{weekday:'short'})}</span></th>`;
+  });
+  html += '</tr></thead><tbody>';
+  DEVS.forEach(dev => {
+    html += '<tr>';
+    html += `<td class="dev-cell"><button class="dev-btn" onclick="openMonth('${esc(dev)}')">${esc(dev)}</button></td>`;
+    days.forEach((d,i) => {
+      const dateStr = fmt(d);
+      const key = ckey(dev,dateStr);
+      const entry = cache[key];
+      const sep = i===5?' week-sep':'';
+      const tc  = isToday(d)?' today-col':'';
+      if(skeleton) {
+        html += `<td class="day-cell${sep}${tc}"><div class="skeleton"></div></td>`;
+        return;
+      }
+      if(entry && entry.text) {
+        const c = getColor(entry.color);
+        const url = normUrl(entry.url||'');
+        if(url) {
+          html += `<td class="day-cell${sep}${tc}">
+            <a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};"
+               onclick="handleChip(event,'${esc(dev)}','${dateStr}')"
+               title="Shift+click to edit">
+              ${esc(entry.text)}<i class="ti ti-external-link chip-icon"></i>
+            </a></td>`;
+        } else {
+          html += `<td class="day-cell${sep}${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
+            <div class="slot-chip" style="background:${c.bg};color:${c.text};">${esc(entry.text)}</div></td>`;
+        }
+      } else {
+        html += `<td class="day-cell${sep}${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
+          <div class="slot-empty"><i class="ti ti-plus"></i></div></td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  document.getElementById('planner-table').innerHTML = html;
+}
+
+function handleChip(e, dev, dateStr) {
+  if(e.shiftKey||e.ctrlKey||e.metaKey) { e.preventDefault(); openSlot(dev,dateStr); }
+}
+
+function renderLegend() {
+  const used = new Set(Object.values(cache).map(e=>e.color).filter(Boolean));
+  const el = document.getElementById('legend');
+  if(!used.size) { el.innerHTML=''; return; }
+  let html = '<span class="legend-label">Colors</span>';
+  COLORS.forEach(c => {
+    if(used.has(c.name)) html+=`<div class="legend-item"><div class="legend-dot" style="background:${c.bg};border:1px solid ${c.text}40"></div><span>${c.name}</span></div>`;
+  });
+  el.innerHTML = html;
+}
+
+function openSlot(dev, dateStr) {
+  const key = ckey(dev,dateStr);
+  const entry = cache[key]||{text:'',color:'gray',url:''};
+  pendingColor[key] = entry.color||'gray';
+  const d = new Date(dateStr+'T00:00:00');
+  const swatches = COLORS.map(c=>`<div class="swatch" style="background:${c.bg};border-color:${pendingColor[key]===c.name?c.text:'transparent'}" data-name="${c.name}" onclick="pickColor(this,'${key}')" title="${c.name}"></div>`).join('');
+  document.getElementById('modal-root').innerHTML = `
+    <div class="overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal" role="dialog">
+        <div class="modal-title">${esc(dev)}</div>
+        <div class="modal-sub">${d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+        <div class="field"><label class="field-label">Task / label</label>
+          <input type="text" id="f-text" placeholder="e.g. Sprint planning, Bug fixes…" maxlength="60" value="${esc(entry.text||'')}" /></div>
+        <div class="field"><label class="field-label"><i class="ti ti-link" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>Link <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="url" id="f-url" placeholder="https://…" value="${esc(entry.url||'')}" />
+          <div class="field-hint">Shift+click a linked chip to edit it</div></div>
+        <div class="field"><label class="field-label">Colour</label>
+          <div class="color-row">${swatches}</div></div>
+        <div class="modal-actions">
+          <button class="btn accent" onclick="saveSlot('${esc(dev)}','${dateStr}','${key}')">Save</button>
+          <button class="btn danger" onclick="delSlot('${esc(dev)}','${dateStr}')">Clear</button>
+          <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(()=>document.getElementById('f-text')?.focus(),50);
+}
+
+function pickColor(el, key) {
+  document.querySelectorAll('.swatch').forEach(s=>{
+    const c=COLORS.find(x=>x.name===s.dataset.name);
+    s.style.borderColor=c?'transparent':'transparent';
+  });
+  const c=COLORS.find(x=>x.name===el.dataset.name);
+  el.style.borderColor=c?c.text:'#000';
+  pendingColor[key]=el.dataset.name;
+}
+
+function saveSlot(dev, dateStr, key) {
+  const text = document.getElementById('f-text').value.trim();
+  const url  = document.getElementById('f-url').value.trim();
+  const color = pendingColor[key]||'gray';
+  closeModal();
+  text ? upsertSlot(dev,dateStr,text,color,url) : deleteSlot(dev,dateStr);
+}
+
+function delSlot(dev, dateStr) { closeModal(); deleteSlot(dev,dateStr); }
+function closeModal() { document.getElementById('modal-root').innerHTML=''; }
+
+function openMonth(dev) { const n=new Date(); showMonth(dev,n.getFullYear(),n.getMonth()); }
+
+async function showMonth(dev, year, month) {
+  const first = new Date(year,month,1);
+  const last  = new Date(year,month+1,0);
+  const startMon = getMonday(first);
+  const endDate  = new Date(last);
+  if(endDate.getDay()!==0) endDate.setDate(endDate.getDate()+(7-endDate.getDay()));
+  const from = fmt(startMon), to = fmt(endDate);
+  let mc = {};
+  try {
+    const {data,error} = await db.from('slots').select('*').eq('dev',dev).gte('date',from).lte('date',to);
+    if(!error && data) { data.forEach(r=>{ mc[r.date]=r; cache[ckey(dev,r.date)]=r; }); }
+  } catch(e){}
+
+  const weeks=[];
+  let cur=new Date(startMon);
+  while(cur<=endDate){
+    const wk=[];
+    for(let d=0;d<5;d++){wk.push(new Date(cur));cur.setDate(cur.getDate()+1);}
+    cur.setDate(cur.getDate()+2); weeks.push(wk);
+  }
+
+  const monthName = new Date(year,month,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  let grid = `<div class="month-grid"><div class="month-gh"></div>${['Mon','Tue','Wed','Thu','Fri'].map(x=>`<div class="month-gh">${x}</div>`).join('')}`;
+  weeks.forEach(wk=>{
+    grid+=`<div class="month-wk">W${getWeekNum(wk[0])}</div>`;
+    wk.forEach(d=>{
+      const ds=fmt(d), entry=mc[ds], c=entry?getColor(entry.color):null;
+      const url=entry?normUrl(entry.url||''):'';
+      const cls=`month-cell${d.getMonth()!==month?' out-month':''}${isToday(d)?' is-today':''}${isPast(d)&&!isToday(d)?' is-past':''}`;
+      grid+=`<div class="${cls}" onclick="monthClick('${esc(dev)}','${ds}')" title="${esc(dev)} · ${ds}${entry?' : '+entry.text:''}">
+        <div class="mc-date">${d.getDate()}</div>
+        ${entry?`<div class="mc-task" style="background:${c.bg};color:${c.text}">${url?'<i class="ti ti-external-link mc-icon"></i>':''}<span>${esc(entry.text)}</span></div>`:''}
+      </div>`;
+    });
+  });
+  grid+='</div>';
+
+  const py=month===0?year-1:year, pm=month===0?11:month-1;
+  const ny=month===11?year+1:year, nm=month===11?0:month+1;
+  document.getElementById('modal-root').innerHTML=`
+    <div class="overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal month-modal" role="dialog">
+        <div class="month-nav">
+          <button class="btn icon-only ghost" onclick="showMonth('${esc(dev)}',${py},${pm})"><i class="ti ti-chevron-left"></i></button>
+          <span class="month-nav-title">${esc(dev)} · ${monthName}</span>
+          <button class="btn icon-only ghost" onclick="showMonth('${esc(dev)}',${ny},${nm})"><i class="ti ti-chevron-right"></i></button>
+        </div>
+        ${grid}
+        <div class="modal-actions" style="margin-top:1rem"><button class="btn ghost" onclick="closeModal()">Close</button></div>
+      </div>
+    </div>`;
+}
+
+function monthClick(dev, dateStr) { closeModal(); setTimeout(()=>openSlot(dev,dateStr),60); }
+
+document.getElementById('prev-btn').onclick  = ()=>{ anchor=addDays(anchor,-14); loadRange(); };
+document.getElementById('next-btn').onclick  = ()=>{ anchor=addDays(anchor,14);  loadRange(); };
+document.getElementById('today-btn').onclick = ()=>{ anchor=getMonday(new Date()); loadRange(); };
+document.getElementById('date-picker').onchange = e => {
+  if(e.target.value){ anchor=getMonday(new Date(e.target.value+'T00:00:00')); loadRange(); }
+};
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+// Initialise — anchor must be set before loadRange is called
+anchor = getMonday(new Date());
+try {
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadRange();
+} catch(e) {
+  showError('Failed to connect to Supabase: '+e.message);
+}
+</script>
+</body>
+</html>
