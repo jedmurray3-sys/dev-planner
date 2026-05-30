@@ -215,7 +215,7 @@ function getColor(name) { return COLORS.find(c=>c.name===name)||COLORS[7]; }
 
 function get14Days() {
   const days = [];
-  for(let w=0;w<2;w++) for(let d=0;d<5;d++) days.push(addDays(anchor,w*7+d));
+  for(let d=0;d<5;d++) days.push(addDays(anchor,d));
   return days;
 }
 
@@ -275,10 +275,9 @@ function renderTable(skeleton) {
   const days = get14Days();
   document.getElementById('date-picker').value = fmt(anchor);
   let html = '<thead><tr><th class="dev-head col-dev">Developer</th>';
-  days.forEach((d,i) => {
-    const sep = i===5?' week-sep':'';
+  days.forEach((d) => {
     const th  = isToday(d)?' today-head':'';
-    html += `<th class="${sep}${th}"><span class="date-num">${d.getDate()}</span><span class="date-day">${d.toLocaleDateString('en-GB',{weekday:'short'})}</span></th>`;
+    html += `<th class="${th}"><span class="date-num">${d.getDate()}</span><span class="date-day">${d.toLocaleDateString('en-GB',{weekday:'short'})}</span></th>`;
   });
   html += '</tr></thead><tbody>';
   DEVS.forEach(dev => {
@@ -288,28 +287,27 @@ function renderTable(skeleton) {
       const dateStr = fmt(d);
       const key = ckey(dev,dateStr);
       const entry = cache[key];
-      const sep = i===5?' week-sep':'';
       const tc  = isToday(d)?' today-col':'';
       if(skeleton) {
-        html += `<td class="day-cell${sep}${tc}"><div class="skeleton"></div></td>`;
+        html += `<td class="day-cell${tc}"><div class="skeleton"></div></td>`;
         return;
       }
       if(entry && entry.text) {
         const c = getColor(entry.color);
         const url = normUrl(entry.url||'');
         if(url) {
-          html += `<td class="day-cell${sep}${tc}">
+          html += `<td class="day-cell${tc}">
             <a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};"
                onclick="handleChip(event,'${esc(dev)}','${dateStr}')"
                title="Shift+click to edit">
               ${esc(entry.text)}<i class="ti ti-external-link chip-icon"></i>
             </a></td>`;
         } else {
-          html += `<td class="day-cell${sep}${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
+          html += `<td class="day-cell${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
             <div class="slot-chip" style="background:${c.bg};color:${c.text};">${esc(entry.text)}</div></td>`;
         }
       } else {
-        html += `<td class="day-cell${sep}${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
+        html += `<td class="day-cell${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
           <div class="slot-empty"><i class="ti ti-plus"></i></div></td>`;
       }
     });
@@ -474,8 +472,8 @@ async function showMonth(dev, year, month) {
 
 function monthClick(dev, dateStr) { closeModal(); setTimeout(()=>openSlot(dev,dateStr),60); }
 
-document.getElementById('prev-btn').onclick  = ()=>{ anchor=addDays(anchor,-14); loadRange(); };
-document.getElementById('next-btn').onclick  = ()=>{ anchor=addDays(anchor,14);  loadRange(); };
+document.getElementById('prev-btn').onclick  = ()=>{ anchor=addDays(anchor,-7); loadRange(); };
+document.getElementById('next-btn').onclick  = ()=>{ anchor=addDays(anchor,7);  loadRange(); };
 document.getElementById('today-btn').onclick = ()=>{ anchor=getMonday(new Date()); loadRange(); };
 document.getElementById('date-picker').onchange = e => {
   if(e.target.value){ anchor=getMonday(new Date(e.target.value+'T00:00:00')); loadRange(); }
