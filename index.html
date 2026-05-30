@@ -66,9 +66,24 @@ td.today-col:hover{background:var(--accent-bg)!important}
 .dev-btn:hover{background:var(--accent-bg);color:var(--accent-text)}
 .slot-empty{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:30px;border-radius:5px;border:1px dashed var(--border-med);color:var(--text3);font-size:16px;transition:border-color 0.12s,color 0.12s}
 .slot-empty:hover{border-color:var(--accent);color:var(--accent)}
-.slot-chip{display:inline-flex;align-items:center;justify-content:center;gap:3px;width:100%;min-height:30px;border-radius:5px;font-size:11px;font-weight:500;padding:3px 5px;line-height:1.3;word-break:break-word;text-align:center;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:filter 0.1s}
+.slot-chip{display:inline-flex;align-items:center;justify-content:center;gap:3px;width:100%;min-height:30px;border-radius:5px;font-size:11px;font-weight:500;padding:3px 5px;padding-right:14px;line-height:1.3;word-break:break-word;text-align:center;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:filter 0.1s;position:relative}
 .slot-chip:hover{filter:brightness(0.95)}
 .slot-chip .chip-icon{font-size:10px;flex-shrink:0;opacity:0.65}
+.chip-x{position:absolute;right:3px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;opacity:0;cursor:pointer;padding:0 2px;border-radius:2px;background:rgba(0,0,0,0.08);line-height:1}
+.slot-chip:hover .chip-x{opacity:1}
+.slot-cell{display:flex;flex-direction:column;gap:3px;padding:2px}
+.slot-add{display:inline-flex;align-items:center;justify-content:center;width:100%;height:24px;border-radius:5px;border:1px dashed var(--border-med);color:var(--text3);font-size:12px;cursor:pointer;transition:border-color 0.12s,color 0.12s}
+.slot-add:hover{border-color:var(--accent);color:var(--accent)}
+.slot-tabs{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border)}
+.slot-tab{padding:4px 10px;border-radius:5px;font-size:12px;border:1px solid var(--border-med);background:var(--surface);color:var(--text2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:background 0.1s}
+.slot-tab.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.slot-tab:hover:not(.active){background:var(--surface2)}
+.tab-x{border:none;background:none;cursor:pointer;opacity:0.55;font-size:13px;padding:0;line-height:1;color:inherit;font-weight:700}
+.tab-x:hover{opacity:1}
+.tab-new{font-size:12px;color:var(--accent);border:1px dashed var(--accent);background:transparent;padding:4px 10px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.tab-new:hover{background:var(--accent-bg)}
+.tab-new.active{background:var(--accent);color:#fff;border-style:solid}
+.mc-overflow{font-size:9px;color:var(--text3);font-family:var(--mono);padding:1px 4px}
 .skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 50%,#eee 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:5px;min-height:30px;width:100%}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 16px 0;padding-bottom:10px}
@@ -236,9 +251,14 @@ async function loadRange() {
   renderTable(true);
   setStatus('Loading…');
   try {
-    const { data, error } = await db.from('slots').select('*').gte('date',from).lte('date',to);
+    const { data, error } = await db.from('slots').select('*').gte('date',from).lte('date',to).order('dev').order('date').order('position');
     if(error) throw error;
-    data.forEach(row => { cache[ckey(row.dev,row.date)] = row; });
+    DEVS.forEach(dev => days.forEach(d => { cache[ckey(dev,fmt(d))] = []; }));
+    data.forEach(row => {
+      const k = ckey(row.dev, row.date);
+      if(!cache[k]) cache[k] = [];
+      cache[k].push(row);
+    });
     setStatus('');
   } catch(e) {
     setStatus('Load failed');
@@ -248,24 +268,43 @@ async function loadRange() {
   renderLegend();
 }
 
-async function upsertSlot(dev, date, text, color, url) {
+async function upsertSlot(dev, date, slotId, position, text, color, url) {
   setStatus('Saving…');
   const changed_by = currentUser?.id || null;
-  cache[ckey(dev,date)] = {dev,date,text,color,url,changed_by,updated_at:new Date().toISOString()};
-  renderTable(false); renderLegend();
+  const key = ckey(dev, date);
+  if(!cache[key]) cache[key] = [];
+  if(slotId) {
+    const idx = cache[key].findIndex(s => s.id === slotId);
+    if(idx !== -1) cache[key][idx] = {...cache[key][idx], text, color, url, changed_by, updated_at: new Date().toISOString()};
+    renderTable(false); renderLegend();
+  }
   try {
-    const {error} = await db.from('slots').upsert({dev,date,text,color,url,changed_by},{onConflict:'dev,date'});
-    if(error) throw error;
+    let newId;
+    if(slotId) {
+      const {error} = await db.from('slots').update({text,color,url,changed_by,updated_at:new Date().toISOString()}).eq('id',slotId);
+      if(error) throw error;
+      newId = slotId;
+    } else {
+      const {data,error} = await db.from('slots').insert({dev,date,position,text,color,url,changed_by}).select('id').single();
+      if(error) throw error;
+      newId = data.id;
+      cache[key].push({id:newId,dev,date,position,text,color,url,changed_by,updated_at:new Date().toISOString()});
+      renderTable(false); renderLegend();
+    }
+    await db.from('slot_history').insert({slot_id:newId,slot_dev:dev,slot_date:date,slot_position:position,text_snapshot:text,color_snapshot:color,action:'upserted',changed_by});
     setStatus('Saved ✓'); setTimeout(()=>setStatus(''),1500);
   } catch(e) { setStatus('Save failed'); showError('Could not save: '+e.message); }
 }
 
-async function deleteSlot(dev, date) {
+async function deleteSlotById(slotId, dev, date) {
   setStatus('Deleting…');
-  delete cache[ckey(dev,date)];
+  const key = ckey(dev, date);
+  cache[key] = (cache[key]||[]).filter(s => s.id !== slotId);
   renderTable(false); renderLegend();
   try {
-    const {error} = await db.from('slots').delete().eq('dev',dev).eq('date',date);
+    const changed_by = currentUser?.id || null;
+    await db.from('slot_history').insert({slot_id:slotId,slot_dev:dev,slot_date:date,action:'deleted',changed_by});
+    const {error} = await db.from('slots').delete().eq('id',slotId);
     if(error) throw error;
     setStatus('Deleted ✓'); setTimeout(()=>setStatus(''),1500);
   } catch(e) { setStatus('Delete failed'); }
@@ -286,28 +325,35 @@ function renderTable(skeleton) {
     days.forEach((d,i) => {
       const dateStr = fmt(d);
       const key = ckey(dev,dateStr);
-      const entry = cache[key];
       const tc  = isToday(d)?' today-col':'';
       if(skeleton) {
         html += `<td class="day-cell${tc}"><div class="skeleton"></div></td>`;
         return;
       }
-      if(entry && entry.text) {
-        const c = getColor(entry.color);
-        const url = normUrl(entry.url||'');
-        if(url) {
-          html += `<td class="day-cell${tc}">
-            <a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};"
-               onclick="handleChip(event,'${esc(dev)}','${dateStr}')"
+      const slots = cache[key] || [];
+      if(slots.length > 0) {
+        let chipsHtml = '';
+        slots.forEach(slot => {
+          const c = getColor(slot.color);
+          const url = normUrl(slot.url||'');
+          if(url) {
+            chipsHtml += `<a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};"
+               onclick="handleChip(event,'${esc(dev)}','${dateStr}','${slot.id}')"
                title="Shift+click to edit">
-              ${esc(entry.text)}<i class="ti ti-external-link chip-icon"></i>
-            </a></td>`;
-        } else {
-          html += `<td class="day-cell${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
-            <div class="slot-chip" style="background:${c.bg};color:${c.text};">${esc(entry.text)}</div></td>`;
-        }
+              ${esc(slot.text)}<i class="ti ti-external-link chip-icon"></i>
+              <span class="chip-x" onclick="event.stopPropagation();event.preventDefault();deleteSlotById('${slot.id}','${esc(dev)}','${dateStr}')">×</span>
+            </a>`;
+          } else {
+            chipsHtml += `<div class="slot-chip" style="background:${c.bg};color:${c.text};"
+               onclick="openSlot('${esc(dev)}','${dateStr}','${slot.id}')">
+              ${esc(slot.text)}
+              <span class="chip-x" onclick="event.stopPropagation();deleteSlotById('${slot.id}','${esc(dev)}','${dateStr}')">×</span>
+            </div>`;
+          }
+        });
+        html += `<td class="day-cell${tc}"><div class="slot-cell">${chipsHtml}<div class="slot-add" onclick="openSlot('${esc(dev)}','${dateStr}',null)"><i class="ti ti-plus"></i></div></div></td>`;
       } else {
-        html += `<td class="day-cell${tc}" onclick="openSlot('${esc(dev)}','${dateStr}')">
+        html += `<td class="day-cell${tc}" onclick="openSlot('${esc(dev)}','${dateStr}',null)">
           <div class="slot-empty"><i class="ti ti-plus"></i></div></td>`;
       }
     });
@@ -317,12 +363,15 @@ function renderTable(skeleton) {
   document.getElementById('planner-table').innerHTML = html;
 }
 
-function handleChip(e, dev, dateStr) {
-  if(e.shiftKey||e.ctrlKey||e.metaKey) { e.preventDefault(); openSlot(dev,dateStr); }
+function handleChip(e, dev, dateStr, slotId) {
+  if(e.shiftKey||e.ctrlKey||e.metaKey) { e.preventDefault(); openSlot(dev,dateStr,slotId); }
 }
 
 function renderLegend() {
-  const used = new Set(Object.values(cache).map(e=>e.color).filter(Boolean));
+  const used = new Set();
+  Object.values(cache).forEach(slots => {
+    (Array.isArray(slots)?slots:[]).forEach(s => { if(s.color) used.add(s.color); });
+  });
   const el = document.getElementById('legend');
   if(!used.size) { el.innerHTML=''; return; }
   let html = '<span class="legend-label">Colors</span>';
@@ -332,34 +381,64 @@ function renderLegend() {
   el.innerHTML = html;
 }
 
-async function openSlot(dev, dateStr) {
-  const key = ckey(dev,dateStr);
-  const entry = cache[key]||{text:'',color:'gray',url:''};
-  pendingColor[key] = entry.color||'gray';
-  const d = new Date(dateStr+'T00:00:00');
-  const swatches = COLORS.map(c=>`<div class="swatch" style="background:${c.bg};border-color:${pendingColor[key]===c.name?c.text:'transparent'}" data-name="${c.name}" onclick="pickColor(this,'${key}')" title="${c.name}"></div>`).join('');
+async function openSlot(dev, dateStr, activeSlotId) {
+  const key = ckey(dev, dateStr);
+  const slots = cache[key] || [];
+  const activeIdx = (activeSlotId != null) ? slots.findIndex(s => s.id === activeSlotId) : -1;
+  const isNew = activeSlotId == null || activeIdx === -1;
+  const entry = isNew ? {text:'',color:'gray',url:''} : slots[activeIdx];
+  const colorKey = isNew ? '__new__' : activeSlotId;
+  pendingColor[colorKey] = entry.color || 'gray';
 
-  // Look up last editor (latest history row) if this slot exists
+  const d = new Date(dateStr+'T00:00:00');
+
+  // Tab strip
+  let tabsHtml = '';
+  if(slots.length > 0 || !isNew) {
+    tabsHtml = '<div class="slot-tabs">';
+    slots.forEach((slot, i) => {
+      const active = !isNew && slot.id === activeSlotId ? ' active' : '';
+      tabsHtml += `<span class="slot-tab${active}" onclick="openSlot('${esc(dev)}','${dateStr}','${slot.id}')">Slot ${i+1}<button class="tab-x" onclick="event.stopPropagation();delTabSlot('${esc(dev)}','${dateStr}','${slot.id}')">×</button></span>`;
+    });
+    const newActive = isNew ? ' active' : '';
+    tabsHtml += `<button class="tab-new${newActive}" onclick="openSlot('${esc(dev)}','${dateStr}',null)">+ New slot</button>`;
+    tabsHtml += '</div>';
+  }
+
+  const swatches = COLORS.map(c=>`<div class="swatch" style="background:${c.bg};border-color:${pendingColor[colorKey]===c.name?c.text:'transparent'}" data-name="${c.name}" onclick="pickColor(this,'${esc(colorKey)}')" title="${c.name}"></div>`).join('');
+
+  // History for existing slot
   let historyLine = '';
-  if(entry.text) {
+  if(!isNew) {
     try {
+      let row = null;
       const {data} = await db.from('slot_history')
-        .select('action, changed_at, changed_by')
-        .eq('slot_dev',dev).eq('slot_date',dateStr)
+        .select('action,changed_at,changed_by')
+        .eq('slot_id', activeSlotId)
         .order('changed_at',{ascending:false}).limit(1);
-      if(data && data[0]) {
-        const editor = await getUserEmail(data[0].changed_by);
-        const when = new Date(data[0].changed_at).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-        historyLine = `<div class="history-line">Last ${data[0].action} by ${esc(editor)} · ${when}</div>`;
+      if(data && data[0]) { row = data[0]; }
+      else {
+        const {data:d2} = await db.from('slot_history')
+          .select('action,changed_at,changed_by')
+          .eq('slot_dev',dev).eq('slot_date',dateStr)
+          .order('changed_at',{ascending:false}).limit(1);
+        if(d2 && d2[0]) row = d2[0];
+      }
+      if(row) {
+        const editor = await getUserEmail(row.changed_by);
+        const when = new Date(row.changed_at).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+        historyLine = `<div class="history-line">Last ${row.action} by ${esc(editor)} · ${when}</div>`;
       }
     } catch(e){}
   }
 
+  const slotIdAttr = isNew ? '' : activeSlotId;
   document.getElementById('modal-root').innerHTML = `
     <div class="overlay" onclick="if(event.target===this)closeModal()">
       <div class="modal" role="dialog">
         <div class="modal-title">${esc(dev)}</div>
         <div class="modal-sub">${d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+        ${tabsHtml}
         <div class="field"><label class="field-label">Task / label</label>
           <input type="text" id="f-text" placeholder="e.g. Sprint planning, Bug fixes…" maxlength="60" value="${esc(entry.text||'')}" /></div>
         <div class="field"><label class="field-label"><i class="ti ti-link" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>Link <span style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0">(optional)</span></label>
@@ -368,8 +447,8 @@ async function openSlot(dev, dateStr) {
         <div class="field"><label class="field-label">Colour</label>
           <div class="color-row">${swatches}</div></div>
         <div class="modal-actions">
-          <button class="btn accent" onclick="saveSlot('${esc(dev)}','${dateStr}','${key}')">Save</button>
-          <button class="btn danger" onclick="delSlot('${esc(dev)}','${dateStr}')">Clear</button>
+          <button class="btn accent" onclick="saveSlot('${esc(dev)}','${dateStr}','${slotIdAttr}')">Save</button>
+          ${slotIdAttr ? `<button class="btn danger" onclick="delTabSlot('${esc(dev)}','${dateStr}','${slotIdAttr}')">Clear</button>` : ''}
           <button class="btn ghost" onclick="closeModal()">Cancel</button>
         </div>
         ${historyLine}
@@ -404,15 +483,28 @@ function pickColor(el, key) {
   pendingColor[key]=el.dataset.name;
 }
 
-function saveSlot(dev, dateStr, key) {
+function saveSlot(dev, dateStr, slotId) {
   const text = document.getElementById('f-text').value.trim();
   const url  = document.getElementById('f-url').value.trim();
-  const color = pendingColor[key]||'gray';
+  const realSlotId = slotId || null;
+  const colorKey = realSlotId || '__new__';
+  const color = pendingColor[colorKey] || 'gray';
   closeModal();
-  text ? upsertSlot(dev,dateStr,text,color,url) : deleteSlot(dev,dateStr);
+  if(text) {
+    const slots = cache[ckey(dev,dateStr)] || [];
+    let position;
+    if(realSlotId) {
+      position = slots.find(s=>s.id===realSlotId)?.position ?? slots.length;
+    } else {
+      position = slots.reduce((m,s)=>Math.max(m,s.position),-1) + 1;
+    }
+    upsertSlot(dev, dateStr, realSlotId, position, text, color, url);
+  } else if(realSlotId) {
+    deleteSlotById(realSlotId, dev, dateStr);
+  }
 }
 
-function delSlot(dev, dateStr) { closeModal(); deleteSlot(dev,dateStr); }
+function delTabSlot(dev, dateStr, slotId) { closeModal(); if(slotId) deleteSlotById(slotId, dev, dateStr); }
 function closeModal() { document.getElementById('modal-root').innerHTML=''; }
 
 function openMonth(dev) { const n=new Date(); showMonth(dev,n.getFullYear(),n.getMonth()); }
@@ -426,8 +518,17 @@ async function showMonth(dev, year, month) {
   const from = fmt(startMon), to = fmt(endDate);
   let mc = {};
   try {
-    const {data,error} = await db.from('slots').select('*').eq('dev',dev).gte('date',from).lte('date',to);
-    if(!error && data) { data.forEach(r=>{ mc[r.date]=r; cache[ckey(dev,r.date)]=r; }); }
+    const {data,error} = await db.from('slots').select('*').eq('dev',dev).gte('date',from).lte('date',to).order('position');
+    if(!error && data) {
+      let cur2=new Date(startMon);
+      while(cur2<=endDate){cache[ckey(dev,fmt(cur2))]=[];cur2.setDate(cur2.getDate()+1);}
+      data.forEach(r=>{
+        mc[r.date]=(mc[r.date]||[]).concat(r);
+        const k=ckey(dev,r.date);
+        if(!cache[k])cache[k]=[];
+        cache[k].push(r);
+      });
+    }
   } catch(e){}
 
   const weeks=[];
@@ -443,12 +544,14 @@ async function showMonth(dev, year, month) {
   weeks.forEach(wk=>{
     grid+=`<div class="month-wk">W${getWeekNum(wk[0])}</div>`;
     wk.forEach(d=>{
-      const ds=fmt(d), entry=mc[ds], c=entry?getColor(entry.color):null;
-      const url=entry?normUrl(entry.url||''):'';
+      const ds=fmt(d), daySlots=mc[ds]||[];
       const cls=`month-cell${d.getMonth()!==month?' out-month':''}${isToday(d)?' is-today':''}${isPast(d)&&!isToday(d)?' is-past':''}`;
-      grid+=`<div class="${cls}" onclick="monthClick('${esc(dev)}','${ds}')" title="${esc(dev)} · ${ds}${entry?' : '+entry.text:''}">
+      const shown=daySlots.slice(0,2), overflow=daySlots.length-shown.length;
+      const chipsStr=shown.map(s=>{const c=getColor(s.color),u=normUrl(s.url||'');return`<div class="mc-task" style="background:${c.bg};color:${c.text}">${u?'<i class="ti ti-external-link mc-icon"></i>':''}<span>${esc(s.text)}</span></div>`;}).join('');
+      grid+=`<div class="${cls}" onclick="monthClick('${esc(dev)}','${ds}')" title="${esc(dev)} · ${ds}">
         <div class="mc-date">${d.getDate()}</div>
-        ${entry?`<div class="mc-task" style="background:${c.bg};color:${c.text}">${url?'<i class="ti ti-external-link mc-icon"></i>':''}<span>${esc(entry.text)}</span></div>`:''}
+        ${chipsStr}
+        ${overflow>0?`<div class="mc-overflow">+${overflow}</div>`:''}
       </div>`;
     });
   });
@@ -470,7 +573,13 @@ async function showMonth(dev, year, month) {
     </div>`;
 }
 
-function monthClick(dev, dateStr) { closeModal(); setTimeout(()=>openSlot(dev,dateStr),60); }
+function monthClick(dev, dateStr) {
+  closeModal();
+  setTimeout(()=>{
+    const slots=cache[ckey(dev,dateStr)]||[];
+    openSlot(dev,dateStr,slots.length>0?slots[0].id:null);
+  },60);
+}
 
 document.getElementById('prev-btn').onclick  = ()=>{ anchor=addDays(anchor,-7); loadRange(); };
 document.getElementById('next-btn').onclick  = ()=>{ anchor=addDays(anchor,7);  loadRange(); };
