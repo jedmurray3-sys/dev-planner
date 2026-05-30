@@ -1,0 +1,28 @@
+name: Deploy preview
+
+on:
+  push:
+    branches-ignore: [main, gh-pages]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage index.html into preview subfolder
+        run: |
+          mkdir -p _preview
+          cp index.html _preview/index.html
+
+      - name: Deploy to gh-pages /preview
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _preview
+          publish_branch: gh-pages
+          destination_dir: preview
+          keep_files: true
