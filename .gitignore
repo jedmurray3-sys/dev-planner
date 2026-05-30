@@ -1,0 +1,13 @@
+# Supabase local temp files (contain project ref and org IDs)
+supabase/.temp/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
