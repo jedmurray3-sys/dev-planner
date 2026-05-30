@@ -137,6 +137,13 @@ td.today-col:hover{background:var(--accent-bg)!important}
 .user-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:var(--r);background:var(--surface2);font-size:12px;color:var(--text2);font-family:var(--mono)}
 .user-pill i{font-size:13px}
 .history-line{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.chip-body{display:flex;align-items:center;gap:3px;justify-content:center;flex-wrap:wrap}
+.chip-jira{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;padding-top:3px}
+.jira-pill{font-size:9px;font-weight:600;padding:1px 5px;border-radius:3px;line-height:1.5;letter-spacing:0.02em}
+.jira-time{font-family:var(--mono);font-size:9px;opacity:0.85}
+.jira-bar-wrap{width:100%;height:3px;background:rgba(0,0,0,0.12);border-radius:2px;overflow:hidden}
+.jira-bar-fill{height:100%;border-radius:2px}
+.jira-over{font-size:9px;font-family:var(--mono);opacity:0.8}
 </style>
 </head>
 <body>
@@ -211,6 +218,32 @@ let cache = {};
 let anchor = null;
 let pendingColor = {};
 let currentUser = null;
+let jiraCache = {};
+
+function extractIssueKey(url) {
+  if (!url) return null;
+  const m = url.match(/[A-Z][A-Z0-9]+-\d+/);
+  return m ? m[0] : null;
+}
+
+async function fetchJiraData() {
+  const keys = new Set();
+  Object.values(cache).forEach(slots => {
+    (Array.isArray(slots) ? slots : []).forEach(slot => {
+      const key = extractIssueKey(normUrl(slot.url || ''));
+      if (key) keys.add(key);
+    });
+  });
+  if (!keys.size) return;
+  try {
+    const { data, error } = await db.functions.invoke('jira-issue', { body: { keys: [...keys] } });
+    if (error) throw error;
+    Object.assign(jiraCache, data);
+    renderTable(false);
+  } catch (e) {
+    // Jira data is non-critical — fail silently
+  }
+}
 
 function getMonday(d) {
   const dt = new Date(d);
@@ -245,6 +278,7 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
 function showError(msg) { const el=document.getElementById('error-banner'); el.textContent=msg; el.classList.add('visible'); }
 
 async function loadRange() {
+  jiraCache = {};
   const days = get14Days();
   const from = fmt(days[0]);
   const to   = fmt(days[days.length - 1]);
@@ -266,6 +300,7 @@ async function loadRange() {
   }
   renderTable(false);
   renderLegend();
+  fetchJiraData();
 }
 
 async function upsertSlot(dev, date, slotId, position, text, color, url) {
@@ -337,12 +372,39 @@ function renderTable(skeleton) {
           const c = getColor(slot.color);
           const url = normUrl(slot.url||'');
           if(url) {
-            chipsHtml += `<a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};"
-               onclick="handleChip(event,'${esc(dev)}','${dateStr}','${slot.id}')"
-               title="Shift+click to edit">
-              ${esc(slot.text)}<i class="ti ti-external-link chip-icon"></i>
-              <span class="chip-x" onclick="event.stopPropagation();event.preventDefault();deleteSlotById('${slot.id}','${esc(dev)}','${dateStr}')">×</span>
-            </a>`;
+            const jKey = extractIssueKey(url);
+            const jData = jKey ? jiraCache[jKey] : null;
+            if(jData) {
+              const spentH = (jData.timeSpentSeconds/3600).toFixed(1);
+              const estH   = (jData.originalEstimateSeconds/3600).toFixed(1);
+              const pct    = jData.originalEstimateSeconds > 0
+                ? Math.min(100, Math.round(jData.timeSpentSeconds/jData.originalEstimateSeconds*100))
+                : (jData.timeSpentSeconds > 0 ? 100 : 0);
+              const overSec = jData.timeSpentSeconds - jData.originalEstimateSeconds;
+              const overH   = (overSec > 0 && jData.originalEstimateSeconds > 0) ? (overSec/3600).toFixed(1) : null;
+              const barColor = overH ? '#f87171' : '#60a5fa';
+              const pillStyles = {new:'background:#f3f4f6;color:#6b7280',indeterminate:'background:#dbeafe;color:#1e40af',done:'background:#dcfce7;color:#166534'};
+              const pillStyle  = pillStyles[jData.statusCategory] || pillStyles.new;
+              chipsHtml += `<a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};flex-direction:column;align-items:center;"
+                 onclick="handleChip(event,'${esc(dev)}','${dateStr}','${slot.id}')"
+                 title="Shift+click to edit">
+                <span class="chip-body">${esc(slot.text)}<i class="ti ti-external-link chip-icon"></i></span>
+                <span class="chip-jira">
+                  <span class="jira-pill" style="${pillStyle}">${esc(jData.statusName)}</span>
+                  <span class="jira-time">${spentH}h / ${estH}h</span>
+                  <div class="jira-bar-wrap"><div class="jira-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+                  ${overH ? `<span class="jira-over">+${overH}h over</span>` : ''}
+                </span>
+                <span class="chip-x" onclick="event.stopPropagation();event.preventDefault();deleteSlotById('${slot.id}','${esc(dev)}','${dateStr}')">×</span>
+              </a>`;
+            } else {
+              chipsHtml += `<a class="slot-chip" href="${esc(url)}" style="background:${c.bg};color:${c.text};"
+                 onclick="handleChip(event,'${esc(dev)}','${dateStr}','${slot.id}')"
+                 title="Shift+click to edit">
+                ${esc(slot.text)}<i class="ti ti-external-link chip-icon"></i>
+                <span class="chip-x" onclick="event.stopPropagation();event.preventDefault();deleteSlotById('${slot.id}','${esc(dev)}','${dateStr}')">×</span>
+              </a>`;
+            }
           } else {
             chipsHtml += `<div class="slot-chip" style="background:${c.bg};color:${c.text};"
                onclick="openSlot('${esc(dev)}','${dateStr}','${slot.id}')">
